@@ -1,0 +1,211 @@
+#!/usr/bin/perl
+#
+##
+##########################################################################
+#                                                                        #
+#       Google Authenticator Automater                                   #
+#                                                                        #
+#       Copyright (C) 2012 by Vamegh Hedayati                            #
+#       vamegh <AT> gmail.com                                            #
+#                                                                        #
+#       Please see Copying for License Information                       #
+#                               GNU/GPL v2 2010                          #
+##########################################################################
+##
+#
+#################################################
+##
+# Integrity Checks
+##
+use strict;
+use warnings;
+#################################################
+# My Modules
+##
+# provided in the following locations:
+##
+use lib qw(/opt/gauth);
+use lib qw(./libs);
+##
+# These should be available by default
+##
+use libs::UserDetails;
+use libs::LogHandle;
+use libs::CMDHandle;
+use libs::AuthHandler;
+use libs::LDAPCON;
+use libs::FileHandler;
+
+#################################################
+# Local Internal Variables for this script
+##
+my $myname="PAM-OATH :: Google Authenticator Automater :: PAM OATH Interface Script";
+my $caller="$myname";
+#################################################
+#  Sub-Routines / Functions Definitions
+##
+##my $file_location="/var/run/gauth/$auth_name/.google_authenticator";
+
+### grabbing all configuration parameters, user specified via config file or command line
+my $cfg_file="/opt/gauth/cfgs/pam-oath.cfg";
+&cmd_handle;
+&read_cfg("cfgpars","$cfg_file");
+&user_info;
+
+
+#my $sys_uname = $ENV{'PAM_USER'};
+#if (!$sys_uname) {
+#  $sys_uname = $ENV{'USER'};
+#}
+#&log_loc($log_dir,$sys_uname."pam-oath.log");
+#&log_it("sys user currently $sys_uname","debug","1",$caller);
+
+## the variable is called goog_store but it store path information
+my $oath_file="$goog_store/users.oath";
+
+if ($sys_pam) {
+  &log_loc($log_dir,$sys_pam."_pam-oath.log");
+  &log_it(" Pam user currently set to $sys_pam ","debug","1",$caller);
+} else {
+  &log_loc($log_dir,$auth_name."_pam-oath.log");
+  &log_it(" Pam user currently set to $sys_pam ","debug","1",$caller);
+}
+
+&log_it("Starting Program Run","debug","1",$caller);
+
+my $oath_user = &read_cfg("oathpars","$oath_file");
+
+if ($oath_user eq 'NONE') {
+  &log_it("User is not in $oath_file, ignoring OATH method","debug","3",$caller);
+  exit 0;
+} else {
+  &log_it("User is in $oath_file, asking for FOB / Hardware Token Password","debug","3",$caller);
+  exit 1;
+}
+
+
+
+##
+#################################################
+#
+################################### EO PROGRAM #######################################################
+#
+################################ MODULE HELP / DOCUMENTATION SECTION #################################
+##
+# Original implementation idea from linblock.pl http://www.dessent.net/linblock/ (c) Brian Dessent GNU/GPL
+# This actually uses no code from linblock.pl, but the implementation was learnt by studying the above script
+##
+# To access documentation please use perldoc CMDHandle.pm, This will provide
+# the formatted help file for this specific module
+##
+#################################################
+#
+__END__
+
+=head1 NAME
+
+PAM-OATH - Google Authenticator Automator
+
+=head1 SYNOPSIS
+
+PAM-OATH  - Google Authenticator Automator
+  This should only be run via PAM, this should not be invoked manually
+
+       --help for more information or perldoc pam-oath
+
+=head1 DESCRIPTION
+
+This is for the pam-oath authentication method, in use by the OTP c200 Hardware Tokens.
+
+This scans through the users.oath file which is created by The web based system and scans through the usernames within that file.
+
+If the username in the file matches the username of the person calling this script then that must mean they are registered with
+a hardware token for their 2nd factor authentication. If their username is not in the list then they are not registered and will
+be dropped to do 2 factor authentication via google_authenticator.
+
+This script _MUST_ be invoked by PAM and should never be called manually. it uses the same libraries as gauth and is closely linked
+into the gauth system.
+
+
+=head1 OPTIONS
+
+The command line options for gauth are as follows:
+
+=over
+
+=item I<add colour>
+
+Uses Term::Ansicolor to colourise the logging. If not specified, no colour is output.
+
+=item -D I<dont log to file>
+
+Doesnt log to file, instead outputs everything to the command line.
+With this specified -L will be ignored
+
+=item -v I<Specify Verbosity Level>
+
+Verbosity Level
+
+I<1> verbosity low C<(-v 1)>
+
+I<2> Verbosity medium C<(-v 2)>
+
+I<3> Verbosity High C<(-v 3)>
+
+=item -U I<Specify the Username to Check>
+
+This option is very useful / bordering necessary.
+This sets the username that should be checked,
+if this option is not set the person running the script will be used for username.
+When this program is invoked by the PAM scripts,
+this option is set to the PAM_USER environment variable i.e -U is called.
+
+=item -G I<Google authenticator file store location>
+
+Location to search for the users.oath file, this file is used by the
+by the OTP c200 Hardware tokens, this script uses this path to search
+for the users.oath file.
+
+Please note this same path needs to also be set in /etc/pam.d/password-auth
+for the default location the corresponding password auth line is:
+[success=done new_authtok_reqd=done default=die] pam_oath.so usersfile=/var/lib/qmauth/oath/users.oath window=60
+Please note the secret location above, this system will add the users/<username> to the path specified automatically.
+
+this should not be set via the command line, unless testing.
+
+=item --help
+
+Print command line options summary.  For more detailed help, type C<perldoc -F pam-oath>.
+
+=item --version
+
+Prints the version information.
+
+=back
+
+=head1 AUTHOR
+
+=over
+
+=item Vamegh Hedayati <vamegh AT gmail DOT com>
+
+=back
+
+=head1 LICENSE
+
+Copyright (C) 2010 / 2012  Vamegh Hedayati <vamegh AT gmail DOT com>
+
+This program is free software; you can redistribute it and/or
+modify it under the terms of the GNU General Public License
+as published by the Free Software Foundation; either version 2
+of the License, or (at your option) any later version.
+
+Please refer to the COPYING file which is distributed with Gauth
+for the full terms and conditions
+
+=cut
+#
+#################################################
+#
+######################################### EOF  #######################################################
+

@@ -1,0 +1,392 @@
+#!/usr/bin/perl
+#
+##
+##########################################################################
+#                                                                        #
+#       Google Authenticator Automater                                   #
+#                                                                        #
+#       Key File Regenerator -                                           #
+#       This will execute With extreme prejudice                         #
+#                                                                        #
+#       Copyright (C) 2012 by Vamegh Hedayati                            #
+#       vamegh <AT> gmail.com                                            #
+#                                                                        #
+#       Please see Copying for License Information                       #
+#                               GNU/GPL v2 2010                          #
+##########################################################################
+##
+#
+#################################################
+##
+# Integrity Checks
+##
+use strict;
+use warnings;
+#################################################
+# My Modules
+##
+# provided in the following locations:
+##
+use lib qw(/opt/gauth);
+use lib qw(./libs);
+##
+# These should be available by default
+##
+use libs::UserDetails;
+use libs::LogHandle;
+use libs::CMDHandle;
+use libs::AuthHandler;
+use libs::LDAPCON;
+use libs::DBCON;
+use libs::MailHandler;
+use libs::QRHandler;
+use libs::FileHandler;
+
+#################################################
+# Local Internal Variables for this script
+##
+my $myname="Google Authenticator Automater :: Main Program ::";
+my $caller="$myname";
+#################################################
+#  Sub-Routines / Functions Definitions
+##
+my $cfg_file="/opt/gauth/cfgs/gauth.cfg";
+my $gauthkey_file='';
+my $gauthkey_pwd='';
+my $gauth_cmd='';
+my $check_name='';
+
+&cmd_handle;
+&read_cfg("cfgpars","$cfg_file");
+&user_info;
+
+if ($sys_pam) {
+  $check_name=$sys_pam;
+  &log_loc($log_dir,$sys_pam."_gauth.log");
+  &user_info;
+  &log_it("Starting Program Run",
+          "debug","1",$caller);
+  &log_it("sys_pam currently set to $sys_pam ",
+          "debug","3",$caller);
+  &log_it("Script User (sys_user) :: ".
+          "currently set to  $sys_user ",
+          "debug","3",$caller);
+  &log_it("Script User (auth_name) :: ".
+          "currently set to $auth_name ",
+          "debug","3",$caller);
+  $gauthkey_pwd="$goog_store/users/$sys_pam";
+  $gauthkey_file="$gauthkey_pwd/.google_authenticator";
+} else {
+  &log_loc($log_dir,$auth_name."_gauth.log");
+  &user_info;
+  &log_it("Starting Program Run",
+          "debug","1",$caller);
+  &log_it("Pam user currently set to :: ".
+          "$auth_name ","debug","3",$caller);
+  $gauthkey_pwd="$goog_store/users/$auth_name";
+  $gauthkey_file="$gauthkey_pwd/.google_authenticator";
+  $check_name=$auth_name;
+}
+
+if (-e $gauthkey_file) {
+  &log_it("Key file $gauthkey_file exists :: ".
+          "Running gauth to generate a new key :: ",
+          "debug","3",$caller);
+} else {
+  &log_it("Key file $gauthkey_file does not exist :: ".
+          "Calling rest of the subsystems to generate key",
+          "debug","3",$caller);
+}
+
+  &user_info;
+  &gauth_run($gauthkey_pwd);
+  ##&mv_googfile;
+  &ldap_check("verify");
+  &ldap_check("unix");
+  &ldap_check("auth");
+
+
+  &log_it("qrcode title currently :: ".
+          "$qrcode_title :: ",
+          "debug","3",$caller);
+
+  $qrcode_title =~ s/::EMAIL::/$gauth_mail/g;
+  $qrcode_title =~ s/::NAME::/$gauth_cn/g;
+  $qrcode_title =~ s/::UNAME::/$auth_name/g;
+
+
+  &log_it("qrcode title now :: ".
+          "$qrcode_title :: ",
+          "debug","3",$caller);
+
+  &qrgen("$qrcode_title","$sec_key");
+
+#  if ("$qrcode_title" eq '@@@EMAIL@@@') {
+#    $qrcode_title = $gauth_mail;
+#  } elsif ("$qrcode_title" eq '@@@NAME@@@') {
+#    $qrcode_title = $gauth_cn;
+#  } elsif ("$qrcode_title" eq '@@@UNAME@@@') {
+#    $qrcode_title = $auth_name;
+#  }
+
+  if ($use_db=~/no/i) {
+    &log_it ("Database usage is disabled from the configuration, ".
+             "Database subsystem will not be used","debug","1","$caller");
+    &log_it ("storing qrcode directly",
+             "debug","3","$caller :: calling qrimg_write");
+    &qrimg_write;
+  } elsif ($use_db=~/yes/i) {
+    &db_connect;
+  }
+  &send_mail("gauthnotify","$gauth_mail","$gauth_cn");
+
+##
+#################################################
+#
+################################### EO PROGRAM #######################################################
+#
+################################ MODULE HELP / DOCUMENTATION SECTION #################################
+##
+# Original implementation idea from linblock.pl http://www.dessent.net/linblock/ (c) Brian Dessent GNU/GPL
+# This actually uses no code from linblock.pl, but the implementation was learnt by studying the above script
+##
+# To access documentation please use perldoc CMDHandle.pm, This will provide
+# the formatted help file for this specific module
+##
+#################################################
+#
+__END__
+
+=head1 NAME
+
+gauth-regen - Google Authenticator Automator Keyfile Regenerator
+
+=head1 SYNOPSIS
+
+Gauth-regen  - Google Authenticator Automator
+
+       --help for more information or perldoc gauth
+
+=head1 DESCRIPTION
+
+This program should only be called to regenerate a users password,
+the main sanity check is skipped, if the user doesnt have a .google_authenticator key, or
+has one this program does not care. It will regenerate the key regardless.
+
+After this is called the user will have to update their google authenticator client
+using the newly generated QR Code.
+
+This should only be manually run, ideally should be run as root and the user to generate keys for
+should be specified by using the -U option.
+
+=head1 OPTIONS
+
+The command line options for gauth are as follows:
+
+=over
+
+=item I<add colour>
+
+Uses Term::Ansicolor to colourise the logging. If not specified, no colour is output.
+
+=item -D I<dont log to file>
+
+Doesnt log to file, instead outputs everything to the command line.
+With this specified -L will be ignored
+
+=item -f I<Specify config file location>
+
+Specify a different config file to use default - /opt/gauth/cfgs/gauth.cfg
+
+=item -v I<Specify Verbosity Level>
+
+Verbosity Level
+
+I<1> verbosity low C<(-v 1)>
+
+I<2> Verbosity medium C<(-v 2)>
+
+I<3> Verbosity High C<(-v 3)>
+
+=item -U I<Specify the Username to Check>
+
+This option is very useful / bordering necessary.
+This sets the username that should be checked,
+if this option is not set the person running the script will be used for username.
+When this program is invoked by the PAM scripts,
+this option is set to the PAM_USER environment variable i.e -U is called.
+If you do not set this option, please run this program as the user you wish it to configure for.
+
+=item -Q I<Specify the Title for the QR Cocde>
+
+This will be the default title the QR Code generator will use to generate the qr code images
+and this will be displayed on all client devices that scan the barcode. There are special values
+@@@NAME@@@, @@@EMAIL@@, @@@UNAME@@@ if the qrcode is set to any of these values then the title
+will be changed to either be the users name, email or username as stored in LDAP. This option should
+really be set in the gauth configuration file.
+
+=item -G I<Google authenticator file store location>
+
+This option specifies where the .google_authenticator
+file should be stored.
+This option should ideally be set in the configuration file.
+:: Please Note :: If this is changed or a new location is specified
+the PAM password-auth file will also need to be updated to use this new location.
+
+=item -l I<Use LDAP>
+
+Specify whether or not to use ldap to do user verification.
+This must be either yes or no. By default the configuration values from the config file are read in.
+Please do not set this via the command line, please use the configuration file.
+Please also note the search field is currently ignored.
+If you specify this you need to specify the following:
+
+LDAP Base C<(-b)>
+
+LDAP Bind C<(-n)>
+
+LDAP Server C<(-s)>
+
+LDAP Search C<(-S)>
+
+LDAP Pass C<(-w)>
+
+Along with the mentioned flags,  this will not work without all of the above information
+
+=item -b I<LDAP Base>
+
+Specify the Base LDAP Tree to examine.
+This must be used in conjuction with -l, the use ldap option detailed above.
+
+=item -n I<LDAP Bind>
+
+Specify the Bind address, This is the username bind.
+Please set this to anon, if you wish to bind anonymously.
+This must be used in conjuction with -l, the use ldap option detailed above.
+
+=item -s I<LDAP Server>
+
+Specify the Server address to use.
+This must be used in conjuction with -l, the use ldap option detailed above.
+
+=item -S I<LDAP Search>
+
+Specify the LDAP Search string, (this is currently ignored)
+This must be used in conjuction with -l, the use ldap option detailed above.
+
+=item -w I<LDAP Pass>
+
+Specify the Bind Password, This is the password for the username specified in bind address.
+Please set this to anon, if you wish to bind anonymously.
+This must be used in conjuction with -l, the use ldap option detailed above.
+
+=item -E I<Use Email>
+
+Specify whether or not to use Email Subsystem.
+This must be either yes or no. By default the configuration values from the config file are read in.
+Please do not set this via the command line, please use the configuration file.
+If you specify this you can also specify the following:
+
+=item -m I<Mail To>
+
+Specify the email address to send emails to.
+
+=item -M I<Mail From>
+
+Specify the email address to send emails from.
+
+=item -H I<Mail Host>
+
+Specify the mail server Host.
+
+=item -c I<database command line input>
+
+Specify whether or not to use a databasee method to store information.
+This must be either yes or no. By default the configuration values from the config file are read in.
+Please do not set this via the command line, please use the configuration file.
+If you specify this you need to specify the following:
+
+hostname C<(-h)>
+
+port C<(-P)>
+
+database C<(-d)>
+
+database table C<(-t)>
+
+username C<(-u)>
+
+password C<(-p)>
+
+database host_id C<(-i)>
+
+Along with the mentioned flags,  this will not work without all of the above information
+
+=item -L I<Logging>
+
+Specifiy where to log to. If not specified logs to default location.
+
+=item -h I<database host>
+
+Specify which database host to connect to, used when the -c option is specified
+
+=item -d I<database>
+
+Specify which database to use, used when the C<(-c)> option is specified.
+
+=item -t I<database_table>
+
+Specify which database table to use, used when the C<(-c)> option is specified.
+
+=item -i I<databse host_id>
+
+Specify which host_id to use, used when the C<(-c)> option is specified
+
+=item -u I<database username>
+
+Specify Username to connect to the database used when the C<(-c)> option is specified
+
+=item -p I<database password>
+
+Specifiy password to connect to the database with.  used when the C<(-c)> option is specified
+
+=item -P I<database port>
+
+Specifiy port to connect to the database.  used when the C<(-c)> option is specified
+
+=item --help
+
+Print command line options summary.  For more detailed help, type C<perldoc -F gauth>.
+
+=item --version
+
+Prints the version information.
+
+=back
+
+=head1 AUTHOR
+
+=over
+
+=item Vamegh Hedayati <vamegh AT gmail DOT com>
+
+=back
+
+=head1 LICENSE
+
+Copyright (C) 2010 / 2012  Vamegh Hedayati <vamegh AT gmail DOT com>
+
+This program is free software; you can redistribute it and/or
+modify it under the terms of the GNU General Public License
+as published by the Free Software Foundation; either version 2
+of the License, or (at your option) any later version.
+
+Please refer to the COPYING file which is distributed with Gauth
+for the full terms and conditions
+
+=cut
+#
+#################################################
+#
+######################################### EOF  #######################################################
+
