@@ -77,7 +77,6 @@ my $mesg='';
 sub ldap_check {
   my $subname="sub ldap_check";
   my $caller=$myname." :: ".$subname;
-  my $unix_uid="NoUnix";
 
   if ($use_ldap=~/no/i) {
     &log_it ("LDAP alerts are disabled from within the configuration,".
@@ -93,21 +92,54 @@ sub ldap_check {
       $ldap_search=shift(@_);
     }
 
-
-
-    #### Intentionally blanked , need to rewrite the LDAP connector..
+    ## Simplified version, originally would check for different ldap structures,
+    ## so if 2 different ldap auth methods were in place it could query each individually,
+    ## which is not necessary for general purpose usage.
     switch($ldap_method) {
-      case "verify" {
+       case "verify" {
         $caller=$myname." :: ".$subname." :: Case verify ::";
         my $verify_method="auth";
         &log_it("Name: $auth_name \n","debug","2","$caller");
         my @entries = &ldap_verify("$verify_method","$ldap_base");
+        if ("@entries" eq '') {
+          &log_it ("User is not in LDAP :: ".
+                   "\@entries is empty, it contains @entries :: ".
+                   "User is not in LDAP ou=$verify_method :: ".
+                   "bombing out","error","1","$caller");
+        } else {
+          &log_it("User appears to be in ou = $verify_method , ".
+                  "User must be in LDAP :: Verification Passed","debug","3","$caller");
+        }
       } case "auth" {
         $caller=$myname." :: ".$subname." :: Case auth ::";
         &log_it ("In $ldap_method :: ".
                  "ldap_server = $ldap_server :: ".
                  "ldap_base = $ldap_base","debug","3","$caller");
         &log_it ("Runing ldap_verify","debug","3","$caller");
+        my @entries = &ldap_verify("$ldap_method","$ldap_base");
+        if ("@entries" eq '') {
+          &log_it ("User is not in LDAP :: \@entries is empty".
+                   "it contains @entries :: User is not in LDAP".
+                   "ou=$ldap_method :: bombing out","error","1","$caller");
+        } else {
+          foreach (@entries) {
+            $gauth_uid = $_->get_value("uid");
+            &log_it("gauth_uid currently $gauth_uid :: ".
+                    "considered valid","debug","3","$caller");
+            if ($gauth_uid !~ /(\w){2,}/) {
+              &log_it("Error :: No UID matched gauth_uid currently $gauth_uid :: ".
+                      "bombing out","error","1","$caller");
+            } else {
+              &log_it("gauth_uid currently $gauth_uid :: ".
+                      "considered valid","debug","3","$caller");
+              $gauth_cn = $_->get_value("cn");
+              $gauth_mail = $_->get_value("mail");
+              &log_it("gauth_uid currently $gauth_uid :: ".
+                      "gauth_cn = $gauth_cn :: ".
+                      "gauth_mail = $gauth_mail","debug","3","$caller");
+            }
+          }
+        }
       }
     }
   }
@@ -116,18 +148,14 @@ sub ldap_check {
 sub ldap_verify {
   my $subname="sub ldap_verify";
   my $caller=$myname." :: ".$subname;
-  my $unix_uid="NoUnix";
   &log_it ("ldap_method = $ldap_method :: ".
            "ldap_server = $ldap_server :: ".
            "ldap_base = $ldap_base","debug","3","$caller");
-  my ($ldap_attr1, $ldap_attr2, $ldap_attr3);
 
   if ("@_" ne '') {
     $ldap_method=shift(@_);
   } if ("@_" ne '') {
     $ldap_base=shift(@_);
-  } if ("@_" ne '') {
-    $ldap_search=shift(@_);
   } if ("@_" ne '') {
     $ldap_server=shift(@_);
   }
@@ -139,29 +167,16 @@ sub ldap_verify {
     or &log_it("Cannot Connect :: $@","error","1","$caller");
   $mesg = $ldap->bind ;
 
-  $ldap_attr1="uid";
-  &log_it ("ldap_attr1 = $ldap_attr1","debug","3","$caller :: after var fill");
-  $ldap_attr2="cn";
-  &log_it ("ldap_attr2 = $ldap_attr2","debug","3","$caller :: after var fill");
-  if ("$ldap_method" eq "auth") {
-    $ldap_attr3="mail";
-    &log_it ("ldap_attr3 = $ldap_attr3","debug","3","$caller :: after var fill");
-  } elsif ("$ldap_method" eq "unix") {
-    $ldap_attr3="loginShell";
-    &log_it ("ldap_attr3 = $ldap_attr3","debug","3","$caller :: after var fill");
-  }
-
   &log_it("User Being verified currently : $auth_name","debug","3","$caller");
   &log_it("LDAP entries as follows: ldap_method = $ldap_method","debug","3","$caller");
-  &log_it("LDAP entries as follows: ldap_search = $ldap_search","debug","3","$caller");
   &log_it("LDAP entries as follows: ldap_base   = $ldap_base","debug","3","$caller");
 
   $mesg = $ldap->search(
                         base   => "ou=$ldap_method, $ldap_base",
                         filter => "(uid=$auth_name)",
-                        attrs => [ $ldap_attr1,
-                                   $ldap_attr2,
-                                   $ldap_attr3 ],
+                        attrs  => [ $ldap_mail_attrib,
+                                    $ldap_cn_attrib,
+                                    $ldap_uid_attrib ],
                       );
   $mesg->code && &log_it("Somethings gone wrong :: ".$mesg->error,"error","1","$caller");
   my @entries = $mesg->entries;

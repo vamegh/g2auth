@@ -51,8 +51,8 @@ use libs::LogHandle;
 use vars   qw($VERSION @ISA @EXPORT @EXPORT_OK %EXPORT_TAGS);
 require Exporter;
 @ISA = qw(Exporter);
-@EXPORT   = qw(cmd_handle $opt_Q $opt_D $opt_C $opt_c $opt_L $opt_l $opt_h $opt_i $opt_f $opt_d $opt_t $opt_u $opt_U $opt_p $opt_P $opt_v $opt_l $opt_b $opt_n $opt_s $opt_S $opt_w $opt_G $cfg_file $use_db $db_name $db_table $db_hid $db_host $db_user $db_pass $dbi $db_port $max_fsize $image_dd $image_size $image_dd_store $image_compress $opt_E $opt_m $opt_M $opt_H $use_mail $mail_to $mail_from $mail_host $remote_host $use_ldap $ldap_base $ldap_bind $ldap_pass $ldap_search $ldap_server $pam_user $goog_store $qrcode_title);
-use vars qw($opt_Q $opt_D $opt_C $opt_c $opt_L $opt_l $opt_h $opt_i $opt_f $opt_d $opt_t $opt_u $opt_U $opt_p $opt_P $opt_v $opt_l $opt_b $opt_n $opt_s $opt_S $opt_w $opt_G $cfg_file $use_db $db_name $db_table $db_hid $db_host $db_user $db_pass $dbi $db_port $opt_E $opt_m $opt_M $opt_H $use_mail $mail_to $mail_from $mail_host $remote_host $use_ldap $ldap_base $ldap_bind $ldap_pass $ldap_search $ldap_server $pam_user $goog_store $qrcode_title);
+@EXPORT   = qw(cmd_handle $opt_Q $opt_D $opt_C $opt_c $opt_L $opt_l $opt_h $opt_i $opt_f $opt_d $opt_t $opt_u $opt_U $opt_p $opt_P $opt_v $opt_l $opt_b $opt_n $opt_s $opt_S $opt_w $opt_G $cfg_file $use_db $db_name $db_table $db_hid $db_host $db_user $db_pass $dbi $db_port $max_fsize $image_dd $image_size $image_dd_store $image_compress $opt_E $opt_m $opt_M $opt_H $use_mail $mail_to $mail_from $mail_host $remote_host $use_ldap $ldap_base $ldap_bind $ldap_pass $ldap_search $ldap_server $pam_user $goog_store $qrcode_title $ldap_mail_attrib $ldap_cn_attrib $ldap_uid_attrib);
+use vars qw($opt_Q $opt_D $opt_C $opt_c $opt_L $opt_l $opt_h $opt_i $opt_f $opt_d $opt_t $opt_u $opt_U $opt_p $opt_P $opt_v $opt_l $opt_b $opt_n $opt_s $opt_S $opt_w $opt_G $cfg_file $use_db $db_name $db_table $db_hid $db_host $db_user $db_pass $dbi $db_port $opt_E $opt_m $opt_M $opt_H $use_mail $mail_to $mail_from $mail_host $remote_host $use_ldap $ldap_base $ldap_bind $ldap_pass $ldap_search $ldap_server $pam_user $goog_store $qrcode_title $ldap_mail_attrib $ldap_cn_attrib $ldap_uid_attrib);
 #################################################
 # Variables Exported From Module - Definitions
 ##
@@ -109,6 +109,9 @@ $ldap_server='';
 $pam_user='';
 $goog_store='';
 $qrcode_title='';
+$ldap_mail_attrib='';
+$ldap_cn_attrib='';
+$ldap_uid_attrib='';
 
 #################################################
 # Local Internal Variables for this Module
@@ -278,11 +281,10 @@ sub cmd_handle {
                 "use_ldap is $use_ldap",
                 "debug","3",
                 "$caller :: using -l $use_ldap");
-        if (!$opt_s or !$opt_n or !$opt_b or !$opt_S or !$opt_w) {
+        if (!$opt_s or !$opt_n or !$opt_b or !$opt_w) {
           pod2usage("Error: ldapserver(-s), ".
                     "\nldap bind address(-n), ".
                     "\nldap base address(-b),".
-                    "\nldap search string(-S)".
                     "\n ldap password (-w)".
                     "\n must be specified if you manually".
                     "specify the ldap subsystem, ".
@@ -291,12 +293,16 @@ sub cmd_handle {
         } else {
           $ldap_server="$opt_s";
           $ldap_base="$opt_b";
-          $ldap_search="$opt_S";
           $ldap_bind="$opt_n";
           $ldap_pass="$opt_w";
+          #$ldap_search="$opt_S";
+          #$ldap_mail_attrib="$opt_x";
+          #$ldap_cn_attrib="$opt_y";
+          #$ldap_uid_attrib="opt_z"';
+          #"\nldap search string(-S)".
+
           &log_it("ldap_server = $ldap_server, ldap_base = $ldap_base,
-                   ldap_search= $ldap_search, ldap_bind = $ldap_bind,
-                   ldap_pass = $ldap_pass ",
+                   ldap_bind = $ldap_bind, ldap_pass = $ldap_pass ",
                    "debug", "2", "$caller :: using -l");
         }
       } case("no") {
@@ -512,11 +518,6 @@ This must be used in conjuction with -l, the use ldap option detailed above.
 =item -s I<LDAP Server>
 
 Specify the Server address to use.
-This must be used in conjuction with -l, the use ldap option detailed above.
-
-=item -S I<LDAP Search>
-
-Specify the LDAP Search string, (this is currently ignored)
 This must be used in conjuction with -l, the use ldap option detailed above.
 
 =item -w I<LDAP Pass>

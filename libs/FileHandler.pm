@@ -307,6 +307,30 @@ sub read_cfg {
           }
         }
 
+        if ($_=~/ldap_mail_attrib/) {
+          if (!$opt_l) {
+            (undef, $ldap_mail_attrib) = split /[=]/;
+            $ldap_mail_attrib = &clean_var($ldap_mail_attrib);
+            &log_it("LDAP MAIL attribute currently $ldap_mail_attrib...","debug","3", "$caller");
+          }
+        }
+
+        if ($_=~/ldap_cn_attrib/) {
+          if (!$opt_l) {
+            (undef, $ldap_cn_attrib) = split /[=]/;
+            $ldap_cn_attrib = &clean_var($ldap_cn_attrib);
+            &log_it("LDAP CN attribute currently $ldap_cn_attrib...","debug","3", "$caller");
+          }
+        }
+
+        if ($_=~/ldap_uid_attrib/) {
+          if (!$opt_l) {
+            (undef, $ldap_uid_attrib) = split /[=]/;
+            $ldap_uid_attrib = &clean_var($ldap_uid_attrib);
+            &log_it("LDAP UID attribute currently $ldap_uid_attrib...","debug","3", "$caller");
+          }
+        }
+
         if ($_=~/use_mail/) {
           if (!$opt_E) {
             (undef, $use_mail) = split /[=]/;
